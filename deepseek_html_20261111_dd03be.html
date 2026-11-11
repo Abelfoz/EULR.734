@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EULR.734</title>
+<style>
+  /* ============================================================
+     ПЕРЕМЕННЫЕ (цвета, шрифт)
+     ============================================================ */
+  :root {
+    --bg: #050505;
+    --panel: #0c0c0c;
+    --line: #3b3b3b;
+    --text: #cfcfcf;
+    --dim: #7d7d7d;
+    --accent: #9a6bff;
+    --ok: #4caf50;
+    --mono: "Courier New", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font: 15px var(--mono);
+    color: var(--text);
+    user-select: none;
+    background: var(--bg);
+  }
+
+  /* ============================================================
+     СКРОЛЛБАР
+     ============================================================ */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #050505; }
+  ::-webkit-scrollbar-thumb { background: #2a1c4d; border: 1px solid var(--line); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  /* ============================================================
+     РАБОЧИЙ СТОЛ: сетка + ЭЛТ-мерцание + сканер (без виньетки)
+     ============================================================ */
+  #desktop {
+    position: fixed;
+    inset: 0 0 28px 0;
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(154, 107, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(154, 107, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px, 40px 40px;
+    animation: crt-flicker 0.15s infinite;
+  }
+  @keyframes crt-flicker {
+    0%   { opacity: 0.99; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.98; }
+  }
+
+  /* Ползущая полоса-сканер поверх сетки */
+  #desktop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: linear-gradient(transparent, rgba(154,107,255,.06) 50%, transparent) 0 0 / 100% 300px no-repeat;
+    animation: sweep 8s linear infinite;
+  }
+  @keyframes sweep {
+    from { background-position: 0 -300px; }
+    to   { background-position: 0 100vh; }
+  }
+
+  /* ============================================================
+     УГЛОВЫЕ РАМКИ (декор)
+     ============================================================ */
+  .corner {
+    position: fixed;
+    width: 22px; height: 22px;
+    z-index: 2;
+    pointer-events: none;
+    opacity: .5;
+  }
+  .corner.a { top: 10px;    left: 10px;  border-top: 2px solid var(--accent);    border-left: 2px solid var(--accent); }
+  .corner.b { top: 10px;    right: 10px; border-top: 2px solid var(--accent);    border-right: 2px solid var(--accent); }
+  .corner.c { bottom: 38px; left: 10px;  border-bottom: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .corner.d { bottom: 38px; right: 10px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+
+  /* ============================================================
+     ИКОНКИ НА СТОЛЕ
+     ============================================================ */
+  .icon {
+    position: absolute;
+    width: 128px;
+    padding: 8px 6px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid transparent;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.35;
+    overflow-wrap: break-word;
+    z-index: 2;
+  }
+  .icon svg {
+    width: 42px; height: 42px;
+    display: block;
+    margin: 0 auto 6px;
+    stroke: var(--text);
+    fill: none;
+    stroke-width: 1.2;
+  }
+  .icon svg text { fill: var(--text); stroke: none; }
+  .icon span {
+    background: rgba(0,0,0,.85);
+    padding: 2px 6px;
+    display: inline-block;
+    max-width: 100%;
+    border: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .icon.sel { border-color: var(--accent); }
+  .icon.sel svg { stroke: var(--accent); }
+  .icon.sel svg text { fill: var(--accent); }
+  .icon.sel span { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  .icon.center { width: 160px; }
+  .icon.center svg { width: 60px; height: 60px; }
+  .icon.center span { font-size: 14px; }
+
+  /* Позиции центральных иконок */
+  .icon[data-w="info"]    { left: calc(50% - 260px); top: 32%; }
+  .icon[data-w="story"]   { left: calc(50% +  100px); top: 32%; }
+  .icon[data-w="journal"] { left: calc(50% -  80px);  top: 56%; }
+
+  /* Позиции угловых иконок */
+  .icon[data-w="pw"]    { left: 4%;  top: 8%; }
+  .icon[data-w="game"]  { left: 4%;  top: 72%; }
+  .icon[data-w="notes"] { left: calc(100% - 140px); top: 8%; }
+  .icon[data-w="trash"] { left: calc(100% - 140px); top: 72%; }
+
+  /* ============================================================
+     АДАПТИВ: планшет
+     ============================================================ */
+  @media (max-width: 900px) {
+    .icon.center { width: 140px; }
+    .icon.center svg { width: 52px; height: 52px; }
+    .icon[data-w="info"]    { left: calc(50% - 230px); top: 32%; }
+    .icon[data-w="story"]   { left: calc(50% +  90px); top: 32%; }
+    .icon[data-w="journal"] { left: calc(50% -  70px); top: 58%; }
+  }
+
+  /* ============================================================
+     АДАПТИВ: телефон
+     ============================================================ */
+  @media (max-width: 700px) {
+    .icon { width: 100px; font-size: 12px; }
+    .icon.center { width: 110px; }
+    .icon.center svg { width: 44px; height: 44px; }
+
+    .icon[data-w="info"]    { left: 4%; top: 8%; }
+    .icon[data-w="story"]   { left: 4%; top: 30%; }
+    .icon[data-w="journal"] { left: 4%; top: 52%; }
+    .icon[data-w="pw"]      { left: calc(100% - 110px); top: 8%; }
+    .icon[data-w="notes"]   { left: calc(100% - 110px); top: 30%; }
+    .icon[data-w="game"]    { left: calc(100% - 110px); top: 52%; }
+    .icon[data-w="trash"]   { left: calc(100% - 110px); top: 74%; }
+  }
+
+  /* ============================================================
+     ОКНА
+     ============================================================ */
+  .win {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: 0 0 0 1px #000, 8px 8px 0 rgba(0,0,0,.6);
+    min-width: 320px;
+    overflow: hidden;
+    z-index: 10;
+  }
+  .win.open { display: flex; animation: winIn .14s ease-out; }
+  .win.active { border-color: var(--accent); }
+  @keyframes winIn {
+    from { opacity: 0; transform: scale(.97); }
+  }
+
+  /* --- Шапка окна (drag) --- */
+  .tb {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px 0 10px;
+    background: #000;
+    border-bottom: 1px solid var(--line);
+    cursor: move;
+    touch-action: none;
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .win.active .tb { color: var(--text); border-bottom-color: var(--accent); }
+  .tb .t {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: .06em;
+  }
+  .tb .t::before { content: "▪ "; color: var(--accent); }
+  .tb button {
+    width: 24px; height: 22px;
+    border: 1px solid var(--line);
+    background: #000;
+    color: var(--text);
+    font: 14px var(--mono);
+    padding: 0;
+    cursor: pointer;
+  }
+  .tb button:hover { background: var(--accent); border-color: var(--accent); color: #000; }
+
+  /* --- Строка меню внутри окна --- */
+  .menu {
+    display: flex;
+    gap: 14px;
+    padding: 4px 12px;
+    border-bottom: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 13px;
+  }
+
+  /* --- Тело окна --- */
+  .body {
+    padding: 16px;
+    overflow: auto;
+    flex: 1;
+    background: var(--panel);
+    user-select: text;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ============================================================
+     ТИПОГРАФИКА ВНУТРИ ОКОН
+     ============================================================ */
+  .nm {
+    font-weight: normal;
+    font-size: 34px;
+    letter-spacing: 2px;
+    margin: 0 0 18px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid;
+    border-image: linear-gradient(90deg, var(--accent), transparent) 1;
+  }
+  .h2 {
+    font-size: 19px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 5px;
+    margin: 0 0 14px;
+    font-weight: normal;
+  }
+  .h2::before { content: "// "; color: var(--accent); }
+  .h2 small { color: var(--dim); font-size: 13px; margin-left: 10px; }
+
+  /* ============================================================
+     ДОСЬЕ: блок «инфо» (фото + таблица)
+     ============================================================ */
+  .info { display: flex; gap: 18px; align-items: flex-start; }
+  .pf { width: 220px; flex: none; }
+
+  .frame {
+    position: relative;
+    border: 1px solid var(--line);
+    padding: 4px;
+    background: #000;
+  }
+  .frame::before, .frame::after {
+    content: "";
+    position: absolute;
+    width: 12px; height: 12px;
+    pointer-events: none;
+  }
+  .frame::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .frame::after  { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .frame img { display: block; width: 100%; filter: grayscale(1) contrast(1.1); }
+
+  /* Заглушка «нет изображения» */
+  .ph {
+    aspect-ratio: 3/4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px;
+    color: var(--dim);
+    font-size: 13px;
+    letter-spacing: 1px;
+    background:
+      linear-gradient(135deg, transparent 49%, var(--line) 49%, var(--line) 51%, transparent 51%),
+      linear-gradient(45deg,  transparent 49%, var(--line) 49%, var(--line) 51%, transparent 51%),
+      #030303;
+  }
+  .tag { margin: 8px 0 0; font-size: 13px; color: var(--dim); letter-spacing: 1px; }
+
+  .appearance { margin-top: 14px; font-size: 13px; color: var(--dim); line-height: 1.5; }
+  .appearance .text { color: var(--text); font-size: 13px; }
+
+  table.d { border-collapse: collapse; width: 100%; }
+  table.d td {
+    padding: 8px 10px;
+    vertical-align: top;
+    border-bottom: 1px dotted var(--line);
+    font-size: 15px;
+  }
+  table.d td:first-child { width: 38%; color: var(--dim); }
+  .st-ok { color: var(--ok); }
+
+  /* ============================================================
+     СПИСКИ / ЗАГОЛОВКИ-РАЗДЕЛИТЕЛИ
+     ============================================================ */
+  .items-block { margin-top: 18px; }
+  .items-list {
+    list-style: none;
+    margin: 0; padding: 0;
+    border-top: 1px dotted var(--line);
+  }
+  .items-list li {
+    padding: 6px 0;
+    border-bottom: 1px dotted var(--line);
+    font-size: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .items-list li::before { content: "▸"; color: var(--accent); font-size: 13px; flex: none; }
+
+  .sub {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--accent);
+    font-size: 16px;
+    letter-spacing: .12em;
+    margin: 22px 0 10px;
+  }
+  .sub::after { content: ""; flex: 1; border-bottom: 1px solid var(--line); }
+
+  /* ============================================================
+     ТАЙМЛАЙН (жизненный отчёт)
+     ============================================================ */
+  .tl { position: relative; padding-left: 24px; }
+  .tl::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 6px; bottom: 6px;
+    width: 1px;
+    background: linear-gradient(var(--accent), var(--line) 25%, var(--line));
+  }
+  .tl .lg {
+    color: var(--accent);
+    font-size: 13px;
+    letter-spacing: 1px;
+    margin: 14px 0 4px;
+    position: relative;
+  }
+  .tl .lg:first-child { margin-top: 0; }
+  .tl .lg::before {
+    content: "";
+    position: absolute;
+    left: -24px; top: 50%;
+    width: 7px; height: 7px; margin-top: -4px;
+    background: var(--accent);
+    transform: rotate(45deg);
+  }
+  .tl p { margin: 0 0 12px; line-height: 1.6; font-size: 15px; }
+
+  /* ============================================================
+     ФОТО ВНУТРИ ТЕКСТА (обтекание)
+     ============================================================ */
+  .inline-photo {
+    float: right;
+    width: 210px;
+    margin: 0 0 12px 16px;
+    clear: both;
+  }
+  .inline-photo .ph { aspect-ratio: 4/3; }
+  .inline-photo img {
+    aspect-ratio: 4/3;
+    width: 100%; height: auto;
+    object-fit: cover;
+    filter: grayscale(1) contrast(1.1);
+    display: block;
+  }
+  .inline-photo .caption {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  /* ============================================================
+     ПЕЧАТЬ «КОНЕЦ ОТЧЁТА»
+     ============================================================ */
+  .stamp {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    color: var(--dim);
+    font-size: 13px;
+    clear: both;
+  }
+  .stamp::before, .stamp::after { content: ""; flex: 1; border-bottom: 1px solid var(--line); }
+
+  /* ============================================================
+     ЭЛЕМЕНТЫ ФОРМ
+     ============================================================ */
+  .btn {
+    border: 1px solid var(--line);
+    background: #000;
+    color: var(--text);
+    font: 14px var(--mono);
+    padding: 6px 16px;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  .in {
+    background: #000;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font: 15px var(--mono);
+    padding: 6px 10px;
+    width: 100%;
+    margin: 10px 0;
+  }
+
+  /* ============================================================
+     ФАЙЛЫ (сетка иконок внутри окон)
+     ============================================================ */
+  .files {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    justify-items: center;
+  }
+  a.f, .f {
+    display: block;
+    width: 100%;
+    max-width: 130px;
+    text-align: center;
+    padding: 8px 4px;
+    border: 1px solid transparent;
+    font-size: 12px;
+    line-height: 1.35;
+    overflow-wrap: break-word;
+    cursor: pointer;
+    color: var(--text);
+    text-decoration: none;
+  }
+  a.f:hover, .f:hover { border-color: var(--accent); }
+  .f svg, a.f svg {
+    width: 36px; height: 36px;
+    display: block;
+    margin: 0 auto 6px;
+    stroke: var(--text);
+    fill: none;
+    stroke-width: 1.2;
+  }
+
+  /* ============================================================
+     ОШИБКА / СЛУЖЕБНЫЕ
+     ============================================================ */
+  .err { text-align: center; padding: 26px 10px; }
+  .err h3 { margin: 0 0 8px; color: var(--accent); font-weight: normal; font-size: 18px; }
+  .dim { color: var(--dim); margin-top: 12px; }
+  .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+  /* ============================================================
+     НИЖНЯЯ ПАНЕЛЬ (таскбар)
+     ============================================================ */
+  #bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    background: #000;
+    border-top: 1px solid var(--line);
+    z-index: 9999;
+  }
+  #start {
+    height: 100%;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    color: var(--accent);
+    font: 13px var(--mono);
+    letter-spacing: .15em;
+    border-right: 1px solid var(--line);
+  }
+  #tasks { flex: 1; display: flex; gap: 4px; padding: 0 6px; overflow: hidden; }
+  #clock {
+    padding: 0 14px;
+    border-left: 1px solid var(--line);
+    height: 100%;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  /* ============================================================
+     ВЕРХНИЙ HUD (звук)
+     ============================================================ */
+  #hud {
+    position: fixed;
+    top: 14px; right: 44px;
+    z-index: 9000;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    color: var(--dim);
+    font-size: 13px;
+    letter-spacing: .1em;
+  }
+  #hud button {
+    border: 1px solid var(--line);
+    background: #000;
+    color: var(--dim);
+    font: 13px var(--mono);
+    padding: 2px 10px;
+    cursor: pointer;
+  }
+  #hud button:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ============================================================
+     ЭКРАН ЗАГРУЗКИ
+     ============================================================ */
+  #boot {
+    position: fixed; inset: 0;
+    background: #000;
+    z-index: 99999;
+    padding: 6vh 6vw;
+    font: 15px/1.7 var(--mono);
+    cursor: default;
+  }
+  #boot pre { margin: 0; font: inherit; }
+  #boot .bar {
+    margin-top: 18px;
+    width: min(420px, 80%);
+    height: 10px;
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  #boot .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+  }
+
+  /* ============================================================
+     АДАПТИВ: телефон (окна на весь экран)
+     ============================================================ */
+  @media (max-width: 700px) {
+    .win { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }
+    .info { flex-direction: column; }
+    .pf { width: 100%; }
+    .pf .ph { height: 260px; }
+    .inline-photo { float: none; width: 100%; margin: 0 0 12px; }
+    #hud { top: auto; bottom: 10px; right: 10px; }
+    .files { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     РАЗМЕТКА: стол, декор, HUD, загрузка, таскбар
+     ============================================================ -->
+<div id="desktop">
+  <div class="icons" id="desktopIcons"></div>
+</div>
+
+<i class="corner a"></i>
+<i class="corner b"></i>
+<i class="corner c"></i>
+<i class="corner d"></i>
+
+<div id="hud">
+  <button id="snd">♪ ВКЛ</button>
+</div>
+
+<div id="boot">
+  <pre id="bootLog"></pre>
+  <div class="bar"><i></i></div>
+</div>
+
+<div id="bar">
+  <div id="start">EUSAN</div>
+  <div id="tasks"></div>
+  <div id="clock">--:--</div>
+</div>
+
+<script>
+/* ============================================================
+   ГЛАВНЫЙ МОДУЛЬ
+   ============================================================ */
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------
+     ССЫЛКИ НА ДОКУМЕНТЫ (внешние)
+     ------------------------------------------------------------ */
+  const LINKS = {
+    codex:   "https://docs.google.com/document/d/1P8ISRAEpYdYWEQt8mFXJqSnaXmvsIGWeh8oXwyq1q00/edit?usp=drivesdk",
+    canteen: "https://docs.google.com/spreadsheets/d/1uP-mLNswJB8nIMMGQ1U0dfh5rhVPBw6wIcGPdqcolhE/edit?usp=sharing",
+    codex2:  "https://docs.google.com/document/d/15DvLnKrAVHlvJYeL9f6-hnZFL18m6HDRZvDFUs6pQfM/edit?tab=t.0#heading=h.bzy5co6eg6ep",
+    bru:     "https://docs.google.com/document/d/1e9vHJ7oyyq_xN370jXSW0GjdRCTGCz3_B4-LDUbxA5k/edit?usp=sharing"
+  };
+
+  /* ------------------------------------------------------------
+     ОПИСАНИЕ ИКОНОК НА СТОЛЕ
+     ------------------------------------------------------------ */
+  const ICONS = [
+    { id: "info",    label: "Досье EULR.734",             icon: "pdf",    center: true },
+    { id: "story",   label: "Отчёт EULR.734",             icon: "pdf",    center: true },
+    { id: "journal", label: "Журнал отношений EULR.734",  icon: "pdf",    center: true, external: "https://example.com/journal" },
+    { id: "pw",      label: "Важное",                     icon: "folder" },
+    { id: "notes",   label: "Заметки",                    icon: "doc"    },
+    { id: "game",    label: "Пасьянс",                    icon: "card"   },
+    { id: "trash",   label: "Корзина",                    icon: "trash"  }
+  ];
+
+  /* ------------------------------------------------------------
+     SVG-ИКОНКИ
+     ------------------------------------------------------------ */
+  const SVG = {
+    pdf:    `<svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><text x="20" y="31" font-size="9" text-anchor="middle">PDF</text></svg>`,
+    folder: `<svg viewBox="0 0 40 40"><path d="M3 9h14l3 4h17v22H3z"/><path d="M3 16h34"/></svg>`,
+    doc:    `<svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><path d="M12 18h17M12 23h17M12 28h11"/></svg>`,
+    card:   `<svg viewBox="0 0 40 40"><rect x="9" y="4" width="22" height="32"/><text x="20" y="27" font-size="18" text-anchor="middle">♠</text></svg>`,
+    trash:  `<svg viewBox="0 0 40 40"><path d="M8 11h24M15 11V7h10v4M11 11l2 26h14l2-26M17 17v14M23 17v14"/></svg>`
+  };
+
+  /* ------------------------------------------------------------
+     ЗВУК
+     ------------------------------------------------------------ */
+  let AC = null;                       // AudioContext
+  let mute = false;
+  try { mute = localStorage.getItem("mute") === "1"; } catch (e) {}
+
+  function tone(freq, dur, type, vol, at, glideTo) {
+    if (!AC) return;
+    const t = AC.currentTime + (at || 0);
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = type || "square";
+    o.frequency.setValueAtTime(freq, t);
+    if (glideTo) o.frequency.linearRampToValueAtTime(glideTo, t + dur);
+    g.gain.setValueAtTime(vol || 0.03, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t); o.stop(t + dur);
+  }
+
+  function beep(kind, n) {
+    if (mute) return;
+    try {
+      if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+      if (AC.state !== "running") { AC.resume(); return; }
+      switch (kind) {
+        case "tick":   tone(900, .04); break;
+        case "open":   tone(420, .07, 0, 0, 0, 640); tone(640, .07, 0, 0, .06); break;
+        case "close":  tone(640, .07, 0, 0, 0, 420); break;
+        case "err":    tone(160, .18, "sawtooth", .05); tone(130, .22, "sawtooth", .05, .2); break;
+        case "ok":     tone(880, .08); tone(1320, .12, 0, 0, .09); break;
+        case "key":    tone(1400, .015, 0, .015); break;
+        case "line":   tone(500 + (n || 0) * 70, .05); break;
+        case "boot":   tone(330, .12); tone(495, .12, 0, 0, .12); tone(660, .28, 0, 0, .24); break;
+        case "glitch": {
+          const buf = AC.createBuffer(1, AC.sampleRate * .15, AC.sampleRate);
+          const d = buf.getChannelData(0);
+          for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+          const src = AC.createBufferSource();
+          const g = AC.createGain();
+          g.gain.value = .05;
+          src.buffer = buf;
+          src.connect(g); g.connect(AC.destination);
+          src.start();
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+
+  /* Разрешение аудио после первого клика */
+  document.addEventListener("pointerdown", function () {
+    try { if (AC) AC.resume(); } catch (e) {}
+  }, { once: true });
+
+  /* ------------------------------------------------------------
+     ОКНА: создание, фокус, drag
+     ------------------------------------------------------------ */
+  const desktop = document.getElementById("desktop");
+  let zTop = 10;
+
+  function focusWin(win) {
+    document.querySelectorAll(".win").forEach(w => w.classList.remove("active"));
+    win.classList.add("active");
+    win.style.zIndex = ++zTop;
+  }
+
+  function makeWindow(id, title, x, y, w, h, innerHTML) {
+    const win = document.createElement("div");
+    win.className = "win";
+    win.id = id;
+    win.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+    win.innerHTML = `
+      <div class="tb">
+        <span class="t">${title}</span>
+        <button class="x">×</button>
+      </div>
+      ${innerHTML}
+    `;
+    desktop.appendChild(win);
+
+    win.addEventListener("pointerdown", () => focusWin(win));
+
+    /* Перетаскивание за шапку */
+    const tb = win.querySelector(".tb");
+    tb.addEventListener("pointerdown", ev => {
+      if (ev.target.tagName === "BUTTON") return;
+
+      const r = win.getBoundingClientRect();
+      const dx = ev.clientX - r.left;
+      const dy = ev.clientY - r.top;
+      tb.setPointerCapture(ev.pointerId);
+
+      const SNAP = 24, MARGIN = 4;
+
+      const move = m => {
+        let newLeft = m.clientX - dx;
+        let newTop  = m.clientY - dy;
+        const w = win.offsetWidth;
+        const h = win.offsetHeight;
+        const maxLeft = innerWidth - w;
+        const maxTop  = innerHeight - h - 30;
+
+        newLeft = Math.max(MARGIN, Math.min(maxLeft - MARGIN, newLeft));
+        newTop  = Math.max(MARGIN, Math.min(maxTop  - MARGIN, newTop));
+
+        if (newLeft < SNAP) newLeft = MARGIN;
+        else if (newLeft > maxLeft - SNAP) newLeft = maxLeft - MARGIN;
+
+        if (newTop < SNAP) newTop = MARGIN;
+        if (newTop > maxTop - SNAP) newTop = maxTop - MARGIN;
+
+        win.style.left = newLeft + "px";
+        win.style.top  = newTop + "px";
+      };
+
+      const up = () => {
+        tb.removeEventListener("pointermove", move);
+        tb.removeEventListener("pointerup", up);
+      };
+      tb.addEventListener("pointermove", move);
+      tb.addEventListener("pointerup", up);
+    });
+
+    /* Кнопка закрытия */
+    win.querySelector(".x").addEventListener("click", () => {
+      win.classList.remove("open", "active");
+      beep("close");
+    });
+
+    return win;
+  }
+
+  function openWindow(id, silent) {
+    const win = document.getElementById(id);
+    if (!win) return;
+    if (!silent) beep("open");
+    win.classList.add("open");
+    focusWin(win);
+  }
+
+  /* ------------------------------------------------------------
+     КОНТЕНТ ОКОН (HTML-шаблоны)
+     ------------------------------------------------------------ */
+
+  /* --- Досье --- */
+  const DOSSIER_EULR = `
+    <div class="body">
+      <h1 class="nm">EULR.734</h1>
+      <div class="info">
+        <div class="pf">
+          <div class="frame">
+            <img src="photo.jpg" alt="" onerror="photoFallback(this)">
+          </div>
+          <p class="tag">ИЗОБРАЖЕНИЕ</p>
+          <div class="appearance">
+            <h3 class="sub" style="margin-top:14px">ВНЕШНОСТЬ</h3>
+            <div class="text">Здесь описание внешности.</div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <table class="d">
+            <tr><td>Обозначение</td><td>EULR.734</td></tr>
+            <tr><td>Тип</td><td>Реплика</td></tr>
+            <tr><td>Место службы</td><td>ERES-427</td></tr>
+            <tr><td>Дата сборки</td><td>22.05.2157</td></tr>
+            <tr><td>Статус</td><td class="st-ok">АКТИВЕН</td></tr>
+          </table>
+          <div class="items-block">
+            <h3 class="sub">ЛИЧНЫЕ ВЕЩИ</h3>
+            <ul class="items-list">
+              <li>Фото</li>
+              <li>Гребень</li>
+              <li>Косметичка</li>
+              <li>Кассета</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  /* --- Жизненный отчёт --- */
+  const REPORT_EULR = `
+    <div class="body">
+      <div class="h2">ЖИЗНЕННЫЙ ОТЧЁТ <small>EULR.734</small></div>
+      <div class="tl">
+        <p class="lg">ЗАПИСЬ 001 — ПРОИЗВОДСТВО</p>
+        <p>Реплика EULR.734 произведена 22.05.2157.</p>
+
+        <p class="lg">ЗАПИСЬ 002 — МЕСТО ПРОЖИВАНИЯ</p>
+        <p>Реплика проживала на Винете в общежитии совместно с репликами-сёстрами.</p>
+
+        <p class="lg">ЗАПИСЬ 003 — ТРУДОУСТРОЙСТВО</p>
+        <div class="inline-photo">
+          <div class="frame">
+            <img src="work.jpg" alt="" onerror="photoFallbackInline(this)">
+          </div>
+          <p class="caption">РАБОТА · 26.07.2157</p>
+        </div>
+        <p>Первоначально была трудоустроена на предприятие общественного питания. Качество приготовляемых блюд неизменно получало положительные отзывы.</p>
+
+        <p class="lg">ЗАПИСЬ 004 — ПЕРЕВОД</p>
+        <p>В 16.09.2157 предприятие общественного питания было закрыто на ремонт. Реплика переведена в дом культуры на должность хореографа.</p>
+
+        <p class="lg">ЗАПИСЬ 005 — СЛУЖБА</p>
+        <div class="inline-photo">
+          <div class="frame">
+            <img src="concert.jpg" alt="" onerror="photoFallbackInline(this)">
+          </div>
+          <p class="caption">КОНЦЕРТ · 08.11.2157</p>
+        </div>
+        <p>В должности хореографа обучала детей танцам. Подготовила воспитанников к исполнению вальса, а также танца под песню, предназначенного для праздника.</p>
+
+        <p class="lg">ЗАПИСЬ 006 — ПРЕКРАЩЕНИЕ ДОЛЖНОСТИ</p>
+        <p>В 08.11.2157 по завершении выступления необходимость в должности отпала в связи с изменением планов дома культуры.</p>
+
+        <p class="lg">ЗАПИСЬ 007 — НАПРАВЛЕНИЕ</p>
+        <p>Реплика отстранена от должности и направлена на объект ERES-427.</p>
+      </div>
+      <div class="stamp">КОНЕЦ ОТЧЁТА</div>
+    </div>
+  `;
+
+  /* --- Папка «Важное» --- */
+  const VAULT = `
+    <div class="body">
+      <div class="files">
+        <a class="f" href="${LINKS.codex}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><text x="20" y="31" font-size="9" text-anchor="middle">PDF</text></svg>
+          Кодекс РС
+        </a>
+        <a class="f" href="${LINKS.canteen}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><text x="20" y="31" font-size="9" text-anchor="middle">PDF</text></svg>
+          Меню кафетерия
+        </a>
+        <a class="f" href="${LINKS.codex2}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><text x="20" y="31" font-size="9" text-anchor="middle">PDF</text></svg>
+          Кодекс правонарушений
+        </a>
+        <a class="f" href="${LINKS.bru}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><text x="20" y="31" font-size="9" text-anchor="middle">PDF</text></svg>
+          Памятка о БРУ
+        </a>
+        <div class="f" data-open="nofolder">
+          <svg viewBox="0 0 40 40"><path d="M3 9h14l3 4h17v22H3z"/><path d="M3 16h34"/></svg>
+          НЕ ОТКРЫВАТЬ
+        </div>
+      </div>
+    </div>
+  `;
+
+  /* --- Окно ввода пароля --- */
+  const NOPASSWORD = `
+    <div class="body">
+      <div>Введите пароль для доступа к папке:</div>
+      <input class="in" id="npInput" type="password" autocomplete="off">
+      <div class="dim" id="npMsg" style="margin:0"></div>
+      <div class="row">
+        <button class="btn" id="npOk">ОК</button>
+      </div>
+    </div>
+  `;
+
+  /* --- Содержимое скрытой папки --- */
+  const NOCONTENT = `
+    <div class="body">
+      <div class="files">
+        <div class="f" data-open="flkr">
+          <svg viewBox="0 0 40 40"><rect x="5" y="8" width="30" height="24"/><circle cx="14" cy="16" r="3"/><path d="M5 30l10-9 7 6 5-4 8 7"/></svg>
+          FLKR
+        </div>
+        <div class="f" data-open="legs">
+          <svg viewBox="0 0 40 40"><rect x="5" y="8" width="30" height="24"/><circle cx="14" cy="16" r="3"/><path d="M5 30l10-9 7 6 5-4 8 7"/></svg>
+          Слив революционерки
+        </div>
+        <div class="f" data-open="together">
+          <svg viewBox="0 0 40 40"><rect x="5" y="8" width="30" height="24"/><circle cx="14" cy="16" r="3"/><path d="M5 30l10-9 7 6 5-4 8 7"/></svg>
+          Вместе
+        </div>
+      </div>
+    </div>
+  `;
+
+  /* --- Картинки внутри скрытой папки --- */
+  const IMAGE_FLKR = `
+    <div class="body" style="display:flex;align-items:center;justify-content:center;text-align:center">
+      <img src="flkr.jpg" alt="" style="max-width:100%;max-height:100%" onerror="this.replaceWith('Изображение не найдено: flkr.jpg')">
+    </div>
+  `;
+
+  const IMAGE_LEGS = `
+    <div class="body" style="display:flex;align-items:center;justify-content:center;text-align:center">
+      <div class="err" style="padding:0">
+        <h3>ОШИБКА</h3>
+        <div>За тобой уже выехали.</div>
+      </div>
+    </div>
+  `;
+
+  const IMAGE_TOGETHER = `
+    <div class="body" style="display:flex;align-items:center;justify-content:center;text-align:center">
+      <img src="together.jpg" alt="" style="max-width:100%;max-height:100%" onerror="this.replaceWith('Изображение не найдено: together.jpg')">
+    </div>
+  `;
+
+  /* --- Данные «корзины» --- */
+  const TRASH_DATA = [
+    {
+      name: "EULR.747",
+      text: "Обозначение: EULR.747\nТип: Реплика\nМесто службы: —\nСтатус: —\nПоследняя запись: данные неполные, подробности утрачены."
+    },
+    {
+      name: "MNHR.063",
+      text: "Обозначение: MNHR.063\nТип: Реплика\nМесто службы: —\nСтатус: —\nПоследняя запись: данные неполные, подробности утрачены."
+    }
+  ];
+
+  const TRASH = `
+    <div class="body">
+      <div class="files">
+        ${TRASH_DATA.map((f, i) => `
+          <div class="f" data-corrupt="${i}">
+            <svg viewBox="0 0 40 40"><path d="M8 3h17l8 8v26H8z"/><path d="M25 3v8h8"/><path d="M12 18h17M12 23h17M12 28h11"/></svg>
+            ${f.name}
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  const CORRUPT = `
+    <div class="body">
+      <div class="err" style="text-align:left;padding:6px">
+        <pre class="txt" id="corruptBody" style="font:inherit;white-space:pre-wrap;margin:0"></pre>
+      </div>
+    </div>
+  `;
+
+  const NOTES = `
+    <div class="menu"><span>Файл</span><span>Правка</span><span>Справка</span></div>
+    <div class="body">
+      <pre class="txt" style="white-space:pre-wrap;font:inherit;margin:0">* Сменить пароль с admin на что-то сложное.
+* Больше сотрудников в КБО
+* Разобраться с БРУ
+* Попросить разблокировать Пасьянс.</pre>
+    </div>
+  `;
+
+  /* --- Универсальное окно «Система» --- */
+  const SAY = `
+    <div class="body">
+      <div class="err" style="padding:8px">
+        <h3 id="sayTitle">Ошибка</h3>
+        <div id="sayBody"></div>
+      </div>
+    </div>
+    <div class="row" style="padding:0 10px 10px">
+      <button class="btn" id="sayOk">ОК</button>
+    </div>
+  `;
+
+  /* ------------------------------------------------------------
+     РЕЕСТР ОКОН
+     ------------------------------------------------------------ */
+  function centerX(w, offset) {
+    return Math.max(0, (innerWidth - w) / 2 + (offset || 0));
+  }
+
+  const windows = [
+    { id: "info",      title: "Досье EULR.734",            x: 0, y: 0, w: 760, h: 620, html: DOSSIER_EULR },
+    { id: "story",     title: "Жизненный отчёт EULR.734",  x: 0, y: 0, w: 700, h: 600, html: REPORT_EULR },
+
+    { id: "pw",        title: "Важное",                        x: centerX(480, -30), y: 120, w: 480, h: 300, html: VAULT },
+    { id: "nofolder",  title: "НЕ ОТКРЫВАТЬ — доступ защищён", x: centerX(380,   0), y: 160, w: 380, h: 220, html: NOPASSWORD },
+    { id: "nocontent", title: "НЕ ОТКРЫВАТЬ",                  x: centerX(480, -30), y: 120, w: 480, h: 300, html: NOCONTENT },
+
+    { id: "flkr",      title: "FLKR",                          x: centerX(580,  40), y: 50,  w: 580, h: 460, html: IMAGE_FLKR },
+    { id: "legs",      title: "Слив революционерки",           x: centerX(480,   0), y: 140, w: 480, h: 220, html: IMAGE_LEGS },
+    { id: "together",  title: "Вместе",                        x: centerX(580, -20), y: 60,  w: 580, h: 460, html: IMAGE_TOGETHER },
+
+    { id: "trash",     title: "Корзина",                       x: centerX(480, -50), y: 110, w: 480, h: 320, html: TRASH },
+    { id: "corrupt",   title: "Файл",                          x: centerX(520,  30), y: 90,  w: 520, h: 340, html: CORRUPT },
+    { id: "notes",     title: "Заметки",                       x: centerX(480,  20), y: 90,  w: 480, h: 320, html: NOTES },
+    { id: "say",       title: "Система",                       x: centerX(400,   0), y: 170, w: 400, h: 190, html: SAY }
+  ];
+
+  windows.forEach(w => makeWindow(w.id, w.title, w.x, w.y, w.w, w.h, w.html));
+
+  /* ------------------------------------------------------------
+     ИКОНКИ НА СТОЛЕ
+     ------------------------------------------------------------ */
+  const iconsContainer = document.getElementById("desktopIcons");
+
+  ICONS.forEach(item => {
+    const el = document.createElement("div");
+    el.className = "icon" + (item.center ? " center" : "");
+    el.dataset.w = item.id;
+    if (item.external) el.dataset.external = item.external;
+    el.innerHTML = SVG[item.icon] + `<span>${item.label}</span>`;
+    iconsContainer.appendChild(el);
+  });
+
+  function handleIconOpen(id, external) {
+    if (external) {
+      window.open(external, "_blank", "noopener");
+      return;
+    }
+    if (id === "game") {
+      showSay("Ошибка", "Программа заблокирована, развлекательное ПО запрещено.", false);
+      return;
+    }
+    openWindow(id);
+  }
+
+  document.querySelectorAll(".icon").forEach(icon => {
+    icon.addEventListener("click", () => {
+      beep("tick");
+      document.querySelectorAll(".icon").forEach(i => i.classList.remove("sel"));
+      icon.classList.add("sel");
+    });
+    icon.addEventListener("dblclick", () => {
+      handleIconOpen(icon.dataset.w, icon.dataset.external);
+    });
+  });
+
+  desktop.addEventListener("click", e => {
+    if (!e.target.closest(".icon")) {
+      document.querySelectorAll(".icon").forEach(i => i.classList.remove("sel"));
+    }
+  });
+
+  /* ------------------------------------------------------------
+     ОТКРЫТИЕ ФАЙЛОВ ИЗ ОКОН (двойной клик)
+     ------------------------------------------------------------ */
+  document.addEventListener("dblclick", e => {
+    const openTarget = e.target.closest("[data-open]");
+    if (openTarget) {
+      openWindow(openTarget.dataset.open);
+      return;
+    }
+
+    const corrupt = e.target.closest("[data-corrupt]");
+    if (corrupt) {
+      const idx = parseInt(corrupt.dataset.corrupt, 10);
+      const file = TRASH_DATA[idx];
+      if (!file) return;
+      const title = document.querySelector("#corrupt .t");
+      const body  = document.getElementById("corruptBody");
+      if (title) title.textContent = file.name;
+      body.textContent = file.text;
+      openWindow("corrupt");
+      startGlitch(file.text);
+      beep("glitch");
+    }
+  });
+
+  /* ------------------------------------------------------------
+     ПАРОЛЬ
+     ------------------------------------------------------------ */
+  document.addEventListener("click", e => {
+    if (e.target.id === "npOk") {
+      const input = document.getElementById("npInput");
+      const msg   = document.getElementById("npMsg");
+      if (input.value === "admin") {
+        input.value = "";
+        msg.textContent = "";
+        document.getElementById("nofolder").classList.remove("open");
+        beep("ok");
+        openWindow("nocontent", true);
+      } else {
+        beep("err");
+        msg.textContent = "Неверный пароль.";
+      }
+    }
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter" && document.activeElement.id === "npInput") {
+      document.getElementById("npOk").click();
+    }
+    if (e.key === "Escape") {
+      document.querySelectorAll(".win.open").forEach(w => {
+        w.classList.remove("open", "active");
+      });
+    }
+  });
+
+  document.addEventListener("input", e => {
+    if (e.target.id === "npInput") beep("key");
+  });
+
+  /* ------------------------------------------------------------
+     ГЛИТЧ В ФАЙЛЕ
+     ------------------------------------------------------------ */
+  let glitchTimer = null;
+
+  function startGlitch(originalText) {
+    clearInterval(glitchTimer);
+    const el = document.getElementById("corruptBody");
+    const chars = "▒▓░█▌▐#%&@?/";
+
+    function randomChar() {
+      return chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    function draw() {
+      const win = document.getElementById("corrupt");
+      if (!win.classList.contains("open")) {
+        clearInterval(glitchTimer);
+        return;
+      }
+      const L = originalText.length;
+      const a = Math.floor(Math.random() * L);
+      const b = a + 8 + Math.floor(Math.random() * 18);
+      const c = Math.floor(Math.random() * L);
+      const d = c + 4 + Math.floor(Math.random() * 8);
+
+      let out = "";
+      for (let i = 0; i < L; i++) {
+        const ch = originalText[i];
+        if (ch === "\n" || ch === " ") {
+          out += ch;
+        } else if ((i >= a && i < b) || (i >= c && i < d) || Math.random() < 0.04) {
+          out += ch;
+        } else {
+          out += randomChar();
+        }
+      }
+      el.textContent = out;
+    }
+
+    draw();
+    glitchTimer = setInterval(draw, 140);
+  }
+
+  /* ------------------------------------------------------------
+     СИСТЕМНОЕ ОКНО
+     ------------------------------------------------------------ */
+  function showSay(title, body, isOk) {
+    document.getElementById("sayTitle").textContent = title;
+    document.getElementById("sayBody").textContent = body;
+    openWindow("say", true);
+    beep(isOk ? "ok" : "err");
+  }
+
+  document.getElementById("sayOk").addEventListener("click", () => {
+    document.getElementById("say").classList.remove("open");
+  });
+
+  /* ------------------------------------------------------------
+     ЗАГЛУШКИ ДЛЯ КАРТИНОК
+     ------------------------------------------------------------ */
+  window.photoFallback = function (img) {
+    const d = document.createElement("div");
+    d.className = "ph";
+    d.innerHTML = "НЕТ ИЗОБРАЖЕНИЯ<br>добавьте photo.jpg<br>рядом с index.html";
+    img.replaceWith(d);
+  };
+
+  window.photoFallbackInline = function (img) {
+    const d = document.createElement("div");
+    d.className = "ph";
+    d.innerHTML = "НЕТ ФОТО";
+    img.replaceWith(d);
+  };
+
+  /* ------------------------------------------------------------
+     ЗАГРУЗКА (boot)
+     ------------------------------------------------------------ */
+  const bootLines = [
+    "СИСТЕМА v4.2 // ХОЛОДНЫЙ СТАРТ",
+    "Загрузка ядра ............... OK",
+    "Проверка памяти ............. 4096 MB / OK",
+    "Монтирование тома ЛИЧНЫЕ_ДЕЛА ... OK",
+    "Монтирование тома КБО ....... OK",
+    "Проверка целостности ........ ПРЕДУПРЕЖДЕНИЕ",
+    "Сканирование секторов ...... 0x0000 - 0xFFFF",
+    "Проверка ПЗУ ................ OK",
+    "Инициализация контроллера ... OK",
+    "Подключение к ERES-427 ...... OK",
+    "Синхронизация времени ....... 11.11.2157",
+    "Загрузка профиля: EULR.734 .. OK",
+    "Применение политик .......... OK",
+    "Запуск пользовательской среды",
+    "Загрузка интерфейса ......... OK"
+  ];
+
+  let bootIndex = 0;
+  let bootFinished = false;
+  const bootEl  = document.getElementById("boot");
+  const bootLog = document.getElementById("bootLog");
+
+  /* Печать строк по таймеру */
+  const bootTimer = setInterval(() => {
+    if (bootIndex < bootLines.length) {
+      beep("line", bootIndex);
+      bootLog.textContent += bootLines[bootIndex++] + "\n";
+    }
+  }, 320);
+
+  /* Полоска загрузки: анимируем через requestAnimationFrame */
+  (function runBootBar() {
+    const barFill = bootEl.querySelector(".bar i");
+    if (!barFill) return;
+    const DURATION = 5000;
+    const start = performance.now();
+    function step(now) {
+      if (bootFinished) { barFill.style.width = "100%"; return; }
+      const p = Math.min(1, (now - start) / DURATION);
+      barFill.style.width = (p * 100) + "%";
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  })();
+
+  function finishBoot() {
+    if (bootFinished) return;
+    bootFinished = true;
+    clearInterval(bootTimer);
+    bootEl.remove();
+    beep("boot");
+
+    /* На десктопе автоматически открываем Досье и Отчёт */
+    if (!matchMedia("(pointer:coarse)").matches && innerWidth > 700) {
+      setTimeout(() => {
+        const infoWin  = document.getElementById("info");
+        const storyWin = document.getElementById("story");
+
+        infoWin.style.left = "40px";
+        infoWin.style.top  = "40px";
+        infoWin.classList.add("open");
+        focusWin(infoWin);
+
+        const storyW = storyWin.offsetWidth  || 700;
+        const storyH = storyWin.offsetHeight || 600;
+        storyWin.style.left = Math.max(0, innerWidth  - storyW - 60) + "px";
+        storyWin.style.top  = Math.max(0, innerHeight - storyH - 90) + "px";
+        storyWin.classList.add("open");
+
+        focusWin(infoWin);
+      }, 200);
+    }
+  }
+  setTimeout(finishBoot, 5000);
+
+  /* ------------------------------------------------------------
+     HUD: переключатель звука
+     ------------------------------------------------------------ */
+  const soundBtn = document.getElementById("snd");
+  function updateSoundBtn() {
+    soundBtn.textContent = mute ? "♪ ВЫКЛ" : "♪ ВКЛ";
+  }
+  updateSoundBtn();
+
+  soundBtn.addEventListener("click", () => {
+    mute = !mute;
+    try { localStorage.setItem("mute", mute ? "1" : "0"); } catch (e) {}
+    updateSoundBtn();
+    if (!mute) beep("ok");
+  });
+
+  /* ------------------------------------------------------------
+     КОНТЕКСТНОЕ МЕНЮ ОТКЛЮЧЕНО
+     ------------------------------------------------------------ */
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  /* ------------------------------------------------------------
+     ЧАСЫ: всегда по Москве (UTC+3), без подписи
+     ------------------------------------------------------------ */
+  const clock = document.getElementById("clock");
+  function tickClock() {
+    const parts = new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).formatToParts(new Date());
+    const hh = (parts.find(p => p.type === "hour")   || {}).value || "--";
+    const mm = (parts.find(p => p.type === "minute") || {}).value || "--";
+    clock.textContent = hh + ":" + mm;
+  }
+  tickClock();
+  setInterval(tickClock, 15 * 1000);
+
+})();
+</script>
+</body>
+</html>
